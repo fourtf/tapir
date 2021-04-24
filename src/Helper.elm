@@ -1,5 +1,6 @@
 module Helper exposing (..)
 
+import Api exposing (AccessToken)
 import Http
 
 
@@ -14,7 +15,7 @@ stringSplitPair pat input =
 
 
 type alias AuthFragment =
-    { access_token : String, scope : String }
+    { accessToken : AccessToken, scope : String }
 
 
 authFragment : String -> Maybe AuthFragment
@@ -29,9 +30,7 @@ authFragment val =
             List.filter (\x -> Tuple.first x == key) params |> List.head |> Maybe.map Tuple.second
     in
     Maybe.map2
-        (\access_token scope ->
-            { access_token = access_token, scope = scope }
-        )
+        AuthFragment
         (getValue "access_token")
         (getValue "scope")
 

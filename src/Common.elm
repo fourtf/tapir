@@ -1,5 +1,6 @@
 module Common exposing (..)
 
+import Api exposing (AccessToken, UserId)
 import Browser exposing (UrlRequest)
 import Browser.Navigation exposing (Key)
 import Helper exposing (AuthFragment)
@@ -10,22 +11,30 @@ import JsonTree
 
 type alias Model =
     { route : Route
-    , accessToken : Maybe String
+    , accessToken : Maybe AccessToken
+    , myUserId : UserId
     , key : Key
-    , selectedUser : String
-    , result : String
-    , resultParsed : Result Decode.Error JsonTree.Node
+    , result : Maybe (Result String ResultModel)
     , resultTreeState : JsonTree.State
+    }
+
+
+type alias ResultModel =
+    { json : String
+    , parsed : Result Decode.Error JsonTree.Node
     }
 
 
 type Msg
     = NopMsg
+      -- Auth
+    | Authorize AccessToken UserId
+      -- Application Lifecycle
     | MsgUrlRequest UrlRequest
     | ChangeRoute Route
-    | SetAccessToken String
-    | SetSelectedUser String
-    | ApiFetchUserByLogin String
+    | ChangeApiRoute Api
+      -- Api Stuff
+    | FetchApi String
     | ApiResult (Result Http.Error String)
     | SetTreeViewState JsonTree.State
 
@@ -34,3 +43,9 @@ type Route
     = RouteHome
     | Route404
     | RouteAuth (Maybe AuthFragment)
+    | RouteApi Api
+
+
+type Api
+    = GetUserByLogin String
+    | GetMyBlockedUsers

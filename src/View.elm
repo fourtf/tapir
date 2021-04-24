@@ -1,8 +1,8 @@
 module View exposing (viewBody)
 
-import Api exposing (authorizationUrl)
+import Api exposing (authorizationUrl, getUserBlockList, getUserByLogin)
 import Browser exposing (UrlRequest(..))
-import Common exposing (Model, Msg(..), Route(..))
+import Common exposing (Api(..), Model, Msg(..), Route(..))
 import Html exposing (a, button, div, input, span, text)
 import Html.Attributes exposing (href, placeholder, style, value)
 import Html.Events exposing (onClick, onInput)
@@ -55,6 +55,12 @@ viewBody : Model -> List (Html.Html Msg)
 viewBody model =
     case model.route of
         RouteHome ->
+            [ text "home"
+            , link "get-users-by-login" "Get Users by Login"
+            , link "get-my-blocks" "Get Blocked Users"
+            ]
+
+        RouteApi api ->
             [ div
                 [ style "background" siteBg
                 , style "min-height" "100vh"
@@ -64,31 +70,7 @@ viewBody model =
                 (viewPage
                     model
                  <|
-                    div
-                        [ style "overflow-x" "auto"
-                        , style "padding" "16px"
-                        ]
-                        [ text "Get User by Login:"
-                        , viewGetUser model
-                        , text "Result:"
-                        , case model.resultParsed of
-                            Ok root ->
-                                JsonTree.view root
-                                    { colors =
-                                        { string = "#6EE7B7"
-                                        , number = "#93C5FD"
-                                        , bool = "#F9A8D4"
-                                        , null = "#D1D5DB"
-                                        , selectable = "#FBBF24"
-                                        }
-                                    , onSelect = Nothing
-                                    , toMsg = SetTreeViewState
-                                    }
-                                    model.resultTreeState
-
-                            Err _ ->
-                                text "json error xd"
-                        ]
+                    viewApi model api
                 )
             ]
 
@@ -99,7 +81,7 @@ viewBody model =
             [ text "auth nothing" ]
 
         RouteAuth (Just auth) ->
-            [ text auth.access_token, text auth.scope ]
+            [ text auth.accessToken, text auth.scope ]
 
 
 viewPage : Model -> Html.Html Msg -> List (Html.Html Msg)
@@ -136,20 +118,75 @@ viewFooter =
         ]
 
 
-viewGetUser : Model -> Html.Html Msg
-viewGetUser model =
+viewApi : Model -> Api -> Html.Html Msg
+viewApi model api =
+    div
+        [ style "overflow-x" "auto"
+        , style "padding" "16px"
+        ]
+        [ viewApiControls model api
+        , text "Result:"
+        , case model.result of
+            Just (Ok { parsed }) ->
+                case parsed of
+                    Ok root ->
+                        JsonTree.view root
+                            { colors =
+                                { string = "#6EE7B7"
+                                , number = "#93C5FD"
+                                , bool = "#F9A8D4"
+                                , null = "#D1D5DB"
+                                , selectable = "#FBBF24"
+                                }
+                            , onSelect = Nothing
+                            , toMsg = SetTreeViewState
+                            }
+                            model.resultTreeState
+
+                    Err _ ->
+                        text "error decoding json"
+
+            Just (Err errStr) ->
+                text errStr
+
+            Nothing ->
+                text "no result yet"
+        ]
+
+
+viewApiControls : Model -> Api -> Html.Html Msg
+viewApiControls model api =
+    case api of
+        GetUserByLogin username ->
+            div []
+                [ text "Get User by Login:"
+                , viewGetUser username
+                ]
+
+        GetMyBlockedUsers ->
+            div []
+                [ text "Get my blocked users."
+                , spaced <|
+                    button
+                        [ onClick (FetchApi <| getUserBlockList model.myUserId) ]
+                        [ text "fetch" ]
+                ]
+
+
+viewGetUser : String -> Html.Html Msg
+viewGetUser username =
     div []
         [ spaced <| text "User login:"
         , spaced <|
             input
                 [ placeholder "user login"
-                , value model.selectedUser
-                , onInput SetSelectedUser
+                , value username
+                , onInput <| (GetUserByLogin >> ChangeApiRoute)
                 ]
                 []
         , spaced <|
             button
-                [ onClick (ApiFetchUserByLogin model.selectedUser)
+                [ onClick (FetchApi <| getUserByLogin username)
                 ]
                 [ text "fetch" ]
         ]

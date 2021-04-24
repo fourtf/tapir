@@ -1,9 +1,9 @@
 module Main exposing (main)
 
-import Api exposing (apiGet)
+import Api exposing (apiGet, getOwnUser)
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav exposing (Key)
-import Common exposing (Model, Msg(..), Route(..))
+import Common exposing (Api(..), Model, Msg(..), Route(..))
 import Helper exposing (authFragment, httpErrorToString)
 import Http
 import JsonTree
@@ -15,11 +15,10 @@ import View exposing (viewBody)
 defaultModel : Key -> Model
 defaultModel key =
     { route = RouteHome
+    , myUserId = ""
     , accessToken = Nothing
     , key = key
-    , selectedUser = ""
-    , result = ""
-    , resultParsed = JsonTree.parseString "{}"
+    , result = Nothing
     , resultTreeState = JsonTree.defaultState
     }
 
@@ -53,12 +52,10 @@ init _ url key =
     in
     case r of
         RouteAuth (Just auth) ->
-            ( { m | accessToken = Just auth.access_token }, Nav.replaceUrl key "/" )
+            ( m, continueAuth auth.accessToken )
 
         _ ->
-            ( { m | route = r }
-            , Cmd.none
-            )
+            ( { m | route = r }, Cmd.none )
 
 
 view : Model -> Browser.Document Msg
@@ -71,6 +68,16 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        NopMsg ->
+            ( model, Cmd.none )
+
+        -- Auth
+        Authorize accessToken uid ->
+            ( { model | accessToken = Just accessToken, myUserId = uid }
+            , Nav.replaceUrl model.key "/"
+            )
+
+        -- Application Lifecycle
         MsgUrlRequest (External url) ->
             ( model, Nav.load url )
 
@@ -78,27 +85,27 @@ update msg model =
             ( model, Nav.pushUrl model.key (Url.toString url) )
 
         ChangeRoute r ->
-            ( { model | route = r }, Cmd.none )
+            ( { model | route = r, result = Nothing }, Cmd.none )
 
-        SetAccessToken token ->
-            ( { model | accessToken = Just token }, Nav.replaceUrl model.key "/" )
+        ChangeApiRoute api ->
+            ( { model | route = RouteApi api }, Cmd.none )
 
-        NopMsg ->
-            ( model, Cmd.none )
-
-        SetSelectedUser user ->
-            ( { model | selectedUser = user }, Cmd.none )
-
-        ApiFetchUserByLogin user ->
+        -- Api Stuff
+        FetchApi url ->
             ( model
-            , apiGet (Api.getUserByLogin user) (Http.expectString ApiResult) (Maybe.withDefault "" model.accessToken)
+            , apiGet url (Http.expectString ApiResult) (Maybe.withDefault "" model.accessToken)
             )
 
         ApiResult (Ok val) ->
             ( updateResult model val, Cmd.none )
 
         ApiResult (Err err) ->
-            ( { model | result = httpErrorToString err }, Cmd.none )
+            ( { model
+                | result = Just <| Err <| httpErrorToString err
+                , resultTreeState = JsonTree.defaultState
+              }
+            , Cmd.none
+            )
 
         SetTreeViewState state ->
             ( { model | resultTreeState = state }, Cmd.none )
@@ -107,9 +114,12 @@ update msg model =
 updateResult : Model -> String -> Model
 updateResult model json =
     { model
-        | result = json
-        , resultParsed = JsonTree.parseString json
-        , resultTreeState = JsonTree.defaultState
+        | result =
+            Just <|
+                Ok
+                    { json = json
+                    , parsed = JsonTree.parseString json
+                    }
     }
 
 
@@ -139,6 +149,19 @@ route =
 parseRoute : Url.Parser.Parser (Route -> c) c
 parseRoute =
     Url.Parser.oneOf
-        [ Url.Parser.map RouteHome Url.Parser.top
-        , Url.Parser.map RouteAuth (Url.Parser.s "auth" </> Url.Parser.fragment (Maybe.andThen authFragment))
+        [ Url.Parser.top |> Url.Parser.map RouteHome
+        , (Url.Parser.s "auth" </> Url.Parser.fragment (Maybe.andThen authFragment)) |> Url.Parser.map RouteAuth
+        , Url.Parser.s "get-users-by-login" |> Url.Parser.map (RouteApi <| GetUserByLogin "")
+        , Url.Parser.s "get-my-blocks" |> Url.Parser.map (RouteApi <| GetMyBlockedUsers)
         ]
+
+
+continueAuth : Api.AccessToken -> Cmd Msg
+continueAuth accessToken =
+    apiGet
+        getOwnUser
+        (Http.expectJson
+            (Result.map (Authorize accessToken) >> Result.withDefault NopMsg)
+            Api.decodeUserId
+        )
+        accessToken
