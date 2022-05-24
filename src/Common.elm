@@ -42,6 +42,7 @@ type Msg
 type Route
     = RouteHome
     | Route404
+    | RouteRequestAuth
     | RouteAuth (Maybe AuthFragment)
     | RouteApi Api
 

@@ -1,7 +1,10 @@
 module Helper exposing (..)
 
 import Api exposing (AccessToken)
+import Element
+import Html.Events
 import Http
+import Json.Decode as Decode
 
 
 stringSplitPair : String -> String -> Maybe ( String, String )
@@ -54,3 +57,20 @@ httpErrorToString err =
                 Http.BadBody msg ->
                     "error message " ++ msg
            )
+
+
+onEnter : msg -> Element.Attribute msg
+onEnter msg =
+    Element.htmlAttribute
+        (Html.Events.on "keyup"
+            (Decode.field "key" Decode.string
+                |> Decode.andThen
+                    (\key ->
+                        if key == "Enter" then
+                            Decode.succeed msg
+
+                        else
+                            Decode.fail "Not the enter key"
+                    )
+            )
+        )

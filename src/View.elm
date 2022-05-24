@@ -1,28 +1,45 @@
-module View exposing (viewBody)
+module View exposing (view)
 
 import Api exposing (authorizationUrl, getUserBlockList, getUserByLogin)
 import Browser exposing (UrlRequest(..))
 import Common exposing (Api(..), Model, Msg(..), Route(..))
-import Html exposing (a, button, div, input, span, text)
-import Html.Attributes exposing (href, placeholder, style, value)
-import Html.Events exposing (onClick, onInput)
+import Element exposing (Attribute, Color, Element, centerX, centerY, column, el, fill, height, html, htmlAttribute, layout, link, maximum, padding, paddingEach, paddingXY, px, rgb, rgb255, rgba, row, scrollbarX, spacing, text, width, wrappedRow)
+import Element.Background
+import Element.Border exposing (rounded)
+import Element.Font as Font exposing (center)
+import Element.Input exposing (button, labelHidden, labelLeft, placeholder)
+import Helper exposing (onEnter)
+import Html
+import Html.Attributes exposing (style)
 import JsonTree
+import List exposing (minimum)
 import Url.Parser exposing ((</>))
 
 
-font : String
-font =
-    "\"Segoe UI\", Verdana, Arial, Helvetica, sans-serif"
+
+-- CONFIG FUNCTIONS
+
+
+siteFont : List Font.Font
+siteFont =
+    [ Font.external { name = "Inter", url = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" }
+    , Font.sansSerif
+    ]
 
 
 navBg : String
 navBg =
-    "#2E125B"
+    "#262626"
 
 
 textColor : String
 textColor =
     "#eee"
+
+
+cardTitleColor : String
+cardTitleColor =
+    "#c8c8c8"
 
 
 linkColor : String
@@ -32,161 +49,238 @@ linkColor =
 
 siteBg : String
 siteBg =
-    -- "#064E3B"
-    "#0F061E"
+    "#292C30"
 
 
-link : String -> String -> Html.Html msg
-link linkHref linkText =
-    a [ href linkHref, style "color" linkColor, spacedStyle ] [ text linkText ]
+bgHex : String -> Attribute Msg
+bgHex s =
+    htmlAttribute <| style "background" s
 
 
-spacedStyle : Html.Attribute msg
-spacedStyle =
-    style "margin" "0 8px"
+fgHex : String -> Attribute Msg
+fgHex s =
+    htmlAttribute <| style "color" s
 
 
-spaced : Html.Html msg -> Html.Html msg
-spaced child =
-    span [ style "margin" "0 8px 0 0" ] [ child ]
+defaultShadow : Attribute Msg
+defaultShadow =
+    htmlAttribute <| style "box-shadow" "0px 4px 8px rgba(0, 0, 0, 0.25)"
 
 
-viewBody : Model -> List (Html.Html Msg)
-viewBody model =
-    case model.route of
-        RouteHome ->
-            [ text "home"
-            , link "get-users-by-login" "Get Users by Login"
-            , link "get-my-blocks" "Get Blocked Users"
-            ]
-
-        RouteApi api ->
-            [ div
-                [ style "background" siteBg
-                , style "min-height" "100vh"
-                , style "color" textColor
-                , style "font-family" font
-                ]
-                (viewPage
-                    model
-                 <|
-                    viewApi model api
-                )
-            ]
-
-        Route404 ->
-            [ text "404" ]
-
-        RouteAuth Nothing ->
-            [ text "auth nothing" ]
-
-        RouteAuth (Just auth) ->
-            [ text auth.accessToken, text auth.scope ]
-
-
-viewPage : Model -> Html.Html Msg -> List (Html.Html Msg)
-viewPage model content =
-    [ viewHeader model
-    , content
-    , viewFooter
+whiteBorder : List (Attribute Msg)
+whiteBorder =
+    [ Element.Border.solid
+    , Element.Border.color <| rgba 1 1 1 0.25
+    , Element.Border.width 1
     ]
 
 
-viewHeader : Model -> Html.Html Msg
-viewHeader model =
-    div
-        [ style "background" navBg
-        , style "padding" "8px 8px"
+twitchHex : String
+twitchHex =
+    "#9256ED"
+
+
+primaryButtonAttr : List (Attribute Msg)
+primaryButtonAttr =
+    whiteBorder
+        ++ [ bgHex twitchHex
+           , fgHex "#ffffff"
+           , padding 10
+           , rounded 6
+           , Font.center
+           ]
+
+
+bodyAttrs : List (Attribute Msg)
+bodyAttrs =
+    [ htmlAttribute <| style "min-height" "100vh", bgHex siteBg, Font.family siteFont, Font.size 16, fgHex textColor ]
+
+
+
+-- VIEW
+
+
+view : Model -> List (Html.Html Msg)
+view model =
+    (List.singleton << layout bodyAttrs) <|
+        case model.route of
+            RouteRequestAuth ->
+                column
+                    [ centerX, centerY, center, spacing 16 ]
+                    [ text "Authorize with twitch to use this page."
+                    , link (centerX :: primaryButtonAttr) { url = authorizationUrl, label = text "Authorize with Twitch" }
+                    ]
+
+            RouteHome ->
+                authorized <| el [ centerX ] <| text "Select an endpoint."
+
+            RouteApi api ->
+                authorized <| viewApi model api
+
+            Route404 ->
+                authorized <| text "404"
+
+            RouteAuth Nothing ->
+                link [] { url = "/", label = text "go to home" }
+
+            RouteAuth (Just _) ->
+                text "You shouldn't be seeing this. Try reloading the page."
+
+
+authorized : Element Msg -> Element Msg
+authorized content =
+    column [ width fill, centerX ] [ nav, content ]
+
+
+
+-- ITEMS
+
+
+nav : Element Msg
+nav =
+    let
+        menuLink url label =
+            el
+                [ padding 24 ]
+                (link [] { url = url, label = text label })
+    in
+    wrappedRow [ centerX ]
+        [ row [ fgHex "#aaa" ] [ el [ fgHex twitchHex ] <| text "T", text "APIr" ]
+        , menuLink "get-users-by-login" "Get Users by Login"
+        , menuLink "get-my-blocks" "Get Blocked Users"
         ]
-        [ spaced <| text "Twitch API Explorer"
-        , link authorizationUrl "Authorize with Twitch"
-        , span [ spacedStyle ]
-            [ text <|
-                if model.accessToken == Nothing then
-                    "not authorized"
-
-                else
-                    "authorized"
-            ]
-        ]
 
 
-viewFooter : Html.Html Msg
-viewFooter =
-    div []
-        [-- text "Made by fourtf"
-        ]
-
-
-viewApi : Model -> Api -> Html.Html Msg
+viewApi : Model -> Api -> Element Msg
 viewApi model api =
-    div
-        [ style "overflow-x" "auto"
-        , style "padding" "16px"
+    column
+        [ width fill, padding 30, spacing 30 ]
+        [ viewQuery model api
+        , viewResult model
         ]
-        [ viewApiControls model api
-        , text "Result:"
-        , case model.result of
-            Just (Ok { parsed }) ->
-                case parsed of
-                    Ok root ->
-                        JsonTree.view root
-                            { colors =
-                                { string = "#6EE7B7"
-                                , number = "#93C5FD"
-                                , bool = "#F9A8D4"
-                                , null = "#D1D5DB"
-                                , selectable = "#FBBF24"
-                                }
-                            , onSelect = Nothing
-                            , toMsg = SetTreeViewState
+
+
+card : List (Attribute Msg) -> Element Msg -> Element Msg
+card attr content =
+    el
+        (attr
+            ++ whiteBorder
+            ++ [ bgHex "#202020"
+               , paddingXY 20 20
+               , rounded 12
+               , defaultShadow
+               , width fill
+               ]
+        )
+        content
+
+
+cardTitle : String -> Element Msg
+cardTitle title =
+    el
+        [ paddingEach { top = 0, left = 0, right = 0, bottom = 20 }
+        ]
+        (el [ Font.family siteFont, Font.size 16, fgHex cardTitleColor, Font.light ] <| text title)
+
+
+viewQuery : Model -> Api -> Element Msg
+viewQuery model api =
+    card [ centerX, width fill ] <|
+        column []
+            [ cardTitle "Query"
+            , case api of
+                GetUserByLogin username ->
+                    column []
+                        [ -- text "Get User by Login:"
+                          viewGetUser username
+                        ]
+
+                GetMyBlockedUsers ->
+                    column []
+                        [ --text "Get my blocked users."
+                          button []
+                            { onPress = Just <| FetchApi <| getUserBlockList model.myUserId
+                            , label = text "Go!"
                             }
-                            model.resultTreeState
+                        ]
+            ]
 
-                    Err _ ->
-                        text "error decoding json"
 
-            Just (Err errStr) ->
-                text errStr
+viewResult : Model -> Element Msg
+viewResult model =
+    case model.result of
+        Just (Ok { parsed }) ->
+            case parsed of
+                Ok root ->
+                    card [] <|
+                        column
+                            [ htmlAttribute <| Html.Attributes.style "max-width" "calc(100vw - 120px)"
+                            , htmlAttribute <| Html.Attributes.style "overflow-x" "auto"
+                            , htmlAttribute <| Html.Attributes.style "overflow-y" "clip"
+                            ]
+                            [ cardTitle "Result"
+                            , JsonTree.view
+                                root
+                                { colors =
+                                    { string = "#6EE7B7"
+                                    , number = "#93C5FD"
+                                    , bool = "#F9A8D4"
+                                    , null = "#D1D5DB"
+                                    , selectable = "#FBBF24"
+                                    }
+                                , onSelect = Nothing
+                                , toMsg = SetTreeViewState
+                                }
+                                model.resultTreeState
+                                |> html
+                            ]
 
-            Nothing ->
-                text "no result yet"
+                Err _ ->
+                    text "error decoding json"
+
+        Just (Err errStr) ->
+            text errStr
+
+        Nothing ->
+            text "no result yet"
+
+
+myInput : String -> String -> (String -> Msg) -> Element Msg
+myInput label text onChange =
+    el [ bgHex "#393939" ] <|
+        Element.Input.text
+            (whiteBorder
+                ++ [ Element.Background.color <| rgb255 57 57 57
+                   , fgHex "#ffffff"
+                   , padding 10
+                   , rounded 6
+                   , width <| px 200
+                   ]
+            )
+            { placeholder = Nothing
+            , text = text
+            , label = labelHidden label
+            , onChange = onChange
+            }
+
+
+goButton : Msg -> Element Msg
+goButton msg =
+    row [ width fill ]
+        [ button
+            (Element.alignRight :: width (px 95) :: primaryButtonAttr)
+            { onPress = Just msg
+            , label = text "Go!"
+            }
         ]
 
 
-viewApiControls : Model -> Api -> Html.Html Msg
-viewApiControls model api =
-    case api of
-        GetUserByLogin username ->
-            div []
-                [ text "Get User by Login:"
-                , viewGetUser username
-                ]
-
-        GetMyBlockedUsers ->
-            div []
-                [ text "Get my blocked users."
-                , spaced <|
-                    button
-                        [ onClick (FetchApi <| getUserBlockList model.myUserId) ]
-                        [ text "fetch" ]
-                ]
-
-
-viewGetUser : String -> Html.Html Msg
+viewGetUser : String -> Element Msg
 viewGetUser username =
-    div []
-        [ spaced <| text "User login:"
-        , spaced <|
-            input
-                [ placeholder "user login"
-                , value username
-                , onInput <| (GetUserByLogin >> ChangeApiRoute)
-                ]
-                []
-        , spaced <|
-            button
-                [ onClick (FetchApi <| getUserByLogin username)
-                ]
-                [ text "fetch" ]
+    column [ spacing 16, onEnter <| FetchApi <| getUserByLogin username ]
+        [ row [ spacing 8 ]
+            [ text "User login:"
+            , myInput "User login:" username (GetUserByLogin >> ChangeApiRoute)
+            ]
+        , goButton <| FetchApi <| getUserByLogin username
         ]

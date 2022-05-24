@@ -9,7 +9,7 @@ import Http
 import JsonTree
 import Url exposing (Url)
 import Url.Parser exposing ((</>))
-import View exposing (viewBody)
+import View
 
 
 defaultModel : Key -> Model
@@ -55,13 +55,14 @@ init _ url key =
             ( m, continueAuth auth.accessToken )
 
         _ ->
-            ( { m | route = r }, Cmd.none )
+            -- discard the original route, go straight to auth request page
+            ( { m | route = RouteRequestAuth }, Cmd.none )
 
 
 view : Model -> Browser.Document Msg
 view model =
     { title = "API Explorer for Twitch"
-    , body = viewBody model
+    , body = View.view model
     }
 
 
